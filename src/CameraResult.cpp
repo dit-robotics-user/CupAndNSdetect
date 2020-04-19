@@ -3,6 +3,7 @@
 #include <aruco_pose/MarkerArray.h>
 #include <aruco_pose/Marker.h>
 #include "std_msgs/String.h"
+#include "std_msgs/Int32.h"
 #include "math.h"
 #include <geometry_msgs/PointStamped.h>
 #include <tf/transform_listener.h>
@@ -12,7 +13,7 @@
 
 //using namespace std;
 
-#define anggleMargin 20
+#define angleMargin 20
 
 class Camera
 {
@@ -31,6 +32,10 @@ public:
     ros::Subscriber aruco;
 
     ros::Subscriber cup;
+
+    ros::Subscriber machineStatus;
+
+    // ros::Timer timer;
 
     ros::Publisher pub;
 
@@ -54,6 +59,10 @@ public:
 
     float last_data3;
 
+    double start_time;
+    
+    double now_time;
+
     std::stringstream strBufferMarker;
 
     std::stringstream strBufferCup;
@@ -70,19 +79,19 @@ public:
 
     int N_S_DataStable;
 
+    int N_S_DataPast;
+ 
     float markerX;
 
     float markerY;
 
     float markerZ;
 
-    uint32_t cupArray[5];
-
-    uint32_t cupResult[5];
-
     int CupCheckTime;
 
     int N_S_CheckTime;
+
+    int machineState;
 
     Camera()
     {
@@ -93,9 +102,12 @@ public:
         markerZ = 0;
         pub = n.advertise<std_msgs::String>("Cup_NS", 1);
         aruco = n.subscribe("aruco_detect/markers", 1000, &Camera::markersCallback, this);
+        machineStatus = n.subscribe("update_status",1000,&Camera::updateStatus,this);
+        machineState = 0;
         cup = n.subscribe("cup", 1000, &Camera::CupCallback, this);
         service1 = n.advertiseService("cup", &Camera::CupService,this);
         service2 = n.advertiseService("ns", &Camera::N_S_Service,this);
+        // timer = n.createTimer(ros::Duration(1), &Camera::timerCallback,this);
         count1 = 0;
         count2 = 0;
         count3 = 0;
@@ -108,143 +120,166 @@ public:
         last_data3 = 0;
         CupCheckTime = 0;
         N_S_DataStable = 0;
+        N_S_CheckTime = 0;
         CupDataStable = 0;
-        N_S_DataStable = 0;
-        for (int count = 0; count < 5; count++)
-        {
-            cupArray[count] = 0;
-            cupResult[count] = 0;
-        }
+        N_S_DataPast = 0;
     }
+
+    // void timerCallback(const ros::TimerEvent& event){
+    //     if(machineState == 1){
+    //         if(start_time == 0)
+    //             start_time = event->current_real;
+    //     }
+    // }
+
 
     void markersCallback(const aruco_pose::MarkerArray::ConstPtr &markers)
     {
 
         if (!markers->markers.empty())
         {
-            // if(markers->markers[0].id != 17) {
-            if (MarkerCplt != 1)
-            {
-                last_data = angle;
-                last_data2 = angle2;
-                last_data2 = angle3;
-                // ROS_INFO("id:%ld",markers->markers[0].id );
-                angle = atan2(
-                    2 * (markers->markers[0].pose.orientation.w * markers->markers[0].pose.orientation.z +
-                         markers->markers[0].pose.orientation.x * markers->markers[0].pose.orientation.y),
-                    1 - 2 * (markers->markers[0].pose.orientation.z * markers->markers[0].pose.orientation.z +
-                             markers->markers[0].pose.orientation.y * markers->markers[0].pose.orientation.y));
-                angle *= -1;
-                angle /= (3.1415926);
-                angle *= 180;
-                if (angle < 0)
-                    angle += 360;
-
-                angle2 = asin(
-                    2 * (markers->markers[0].pose.orientation.w * markers->markers[0].pose.orientation.y -
-                         markers->markers[0].pose.orientation.x * markers->markers[0].pose.orientation.z));
-                angle2 *= -1;
-                angle2 /= (3.1415926);
-                angle2 *= 180;
-                if (angle2 < 0)
-                    angle2 += 360;
-
-                angle3 = atan2(
-                    2 * (markers->markers[0].pose.orientation.y * markers->markers[0].pose.orientation.z +
-                         markers->markers[0].pose.orientation.x * markers->markers[0].pose.orientation.w),
-                    1 - 2 * (markers->markers[0].pose.orientation.z * markers->markers[0].pose.orientation.z +
-                             markers->markers[0].pose.orientation.w * markers->markers[0].pose.orientation.w));
-                angle3 *= -1;
-                angle3 /= (3.1415926);
-                angle3 *= 180;
-                if (angle3 < 0)
-                    angle3 += 360;
-
-                if ((angle > last_data - 10 || angle < last_data + 10))
+            if (now_time - start_time >= 25){
+                // if(markers->markers[0].id != 17) {
+                if (MarkerCplt != 1)
                 {
-                    count1++;
-                    //ROS_INFO("angle = %f", angle);
-                    if (count1 == 5)
-                    {
-                        if (angle >= 360 - anggleMargin || angle <= 0 + anggleMargin)
-                        {
-                            strBufferMarker << 1;
-                            N_S_Result.data = strBufferMarker.str();
-                            ROS_INFO("%d",N_S_Result.data[0]);
-                             // ROS_INFO("Heading to North");
-                        }
+                    last_data = angle;
+                    last_data2 = angle2;
+                    last_data2 = angle3;
+                    // ROS_INFO("id:%ld",markers->markers[0].id );
+                    angle = atan2(
+                        2 * (markers->markers[0].pose.orientation.w * markers->markers[0].pose.orientation.z +
+                             markers->markers[0].pose.orientation.x * markers->markers[0].pose.orientation.y),
+                        1 - 2 * (markers->markers[0].pose.orientation.z * markers->markers[0].pose.orientation.z +
+                                 markers->markers[0].pose.orientation.y * markers->markers[0].pose.orientation.y));
+                    angle *= -1;
+                    angle /= (3.1415926);
+                    angle *= 180;
+                    if (angle < 0)
+                        angle += 360;
 
-                        else
+                    angle2 = asin(
+                        2 * (markers->markers[0].pose.orientation.w * markers->markers[0].pose.orientation.y -
+                             markers->markers[0].pose.orientation.x * markers->markers[0].pose.orientation.z));
+                    angle2 *= -1;
+                    angle2 /= (3.1415926);
+                    angle2 *= 180;
+                    if (angle2 < 0)
+                        angle2 += 360;
+
+                    angle3 = atan2(
+                        2 * (markers->markers[0].pose.orientation.y * markers->markers[0].pose.orientation.z +
+                             markers->markers[0].pose.orientation.x * markers->markers[0].pose.orientation.w),
+                        1 - 2 * (markers->markers[0].pose.orientation.z * markers->markers[0].pose.orientation.z +
+                                 markers->markers[0].pose.orientation.w * markers->markers[0].pose.orientation.w));
+                    angle3 *= -1;
+                    angle3 /= (3.1415926);
+                    angle3 *= 180;
+                    if (angle3 < 0)
+                        angle3 += 360;
+
+                    if ((angle > last_data - 10 || angle < last_data + 10))
+                    {
+                        count1++;
+                        //ROS_INFO("angle = %f", angle);
+                        if (count1 == 5)
                         {
-                            strBufferMarker << 0;
-                            N_S_Result.data = strBufferMarker.str();
-                            ROS_INFO("%d", N_S_Result.data[0]);
-                            // ROS_INFO("Heading to South");
+                            if (angle >= 360 - angleMargin || angle <= 0 + angleMargin)
+                            {
+                                strBufferMarker << 1;
+                                N_S_Result.data = strBufferMarker.str();
+                                ROS_INFO("%d", N_S_Result.data[0]);
+                                // ROS_INFO("Heading to North");
+                            }
+
+                            else if (angle >= 180 - angleMargin && angle <= 180 + angleMargin)
+                            {
+                                strBufferMarker << 0;
+                                N_S_Result.data = strBufferMarker.str();
+                                ROS_INFO("%d", N_S_Result.data[0]);
+                                // ROS_INFO("Heading to South");
+                            }
+
+                            else
+                            {
+                                strBufferMarker << 3;
+                                N_S_Result.data = strBufferMarker.str();
+                            }
+                            if (N_S_DataStable != 1)
+                            {
+                                if (N_S_DataPast != N_S_Result.data[0])
+                                {
+                                    N_S_CheckTime = 0;
+                                    N_S_DataPast = N_S_Result.data[0];
+                                }
+                                else
+                                {
+                                    N_S_CheckTime++;
+                                    if (N_S_CheckTime == 5)
+                                        N_S_DataStable = 1;
+                                }
+                            }
+                            count1 = 0;
+                            MarkerCplt = 1;
+                            // strBufferMarker.data = strBuffer.str();
+                            // pub.publish(strBufferMarker);
+                            // ROS_INFO("angle = %f", angle);
                         }
-                        count1 = 0;
-                        MarkerCplt = 1;
-                        // strBufferMarker.data = strBuffer.str();
-                        // pub.publish(strBufferMarker);
-                        // ROS_INFO("angle = %f", angle);
+                    }
+                    if ((angle2 > last_data2 - 10 || angle2 < last_data2 + 10))
+                        count2++;
+                    //ROS_INFO("angle = %f", angle);
+                    if (count2 == 5)
+                    {
+                        count2 = 0;
+                        // ROS_INFO("angle2 = %f", angle2);
+                    }
+
+                    if ((angle3 > last_data3 - 10 || angle3 < last_data3 + 10))
+                        count3++;
+                    //ROS_INFO("angle = %f", angle);
+                    if (count3 == 5)
+                    {
+                        count3 = 0;
+
+                        // ROS_INFO("angle3 = %f", angle3);
                     }
                 }
-                if ((angle2 > last_data2 - 10 || angle2 < last_data2 + 10))
-                    count2++;
-                //ROS_INFO("angle = %f", angle);
-                if (count2 == 5)
-                {
-                    count2 = 0;
-                    // ROS_INFO("angle2 = %f", angle2);
-                }
-
-                if ((angle3 > last_data3 - 10 || angle3 < last_data3 + 10))
-                    count3++;
-                //ROS_INFO("angle = %f", angle);
-                if (count3 == 5)
-                {
-                    count3 = 0;
-
-                    // ROS_INFO("angle3 = %f", angle3);
-                }
             }
-            // ROS_INFO("x:%f",markers->markers[0].pose.position.x );
-            // ROS_INFO("y:%f",markers->markers[0].pose.position.y );
-            // ROS_INFO("z:%f",markers->markers[0].pose.position.z );
-            // markerX = markers->markers[0].pose.position.x;
-            // markerY = markers->markers[0].pose.position.y;
-            // markerZ = markers->markers[0].pose.position.z;
-            //ROS_INFO("w:%f",markers->markers[0].pose.orientation.w);
-            //ROS_INFO("angle = %f", angle);
+                
         }
         else
         {
             // ROS_INFO("None");
         }
-        // }
+
+    }
+
+
+    void updateStatus(const std_msgs::Int32::ConstPtr & msg){
+        if(msg->data == 5 && machineState != 1){
+            machineState = 1;
+            start_time = ros::Time::now().toSec();
+        }
     }
 
     void CupCallback(const std_msgs::String::ConstPtr &msg)
     {
-        // ROS_INFO("I heard: [%s]", msg->data.c_str());
-        // ROS_INFO("%s", msg->data.c_str());
+
         if (CupCplt != 1)
         {
             strBufferCup << msg->data.c_str();
             CupTempBuffer.data = strBufferCup.str();
             for (int QAQ = 0; QAQ < 5; QAQ++)
             {
-                // ROS_INFO("%d", CupTempBuffer.data[QAQ]);
                 if (CupTempBuffer.data[QAQ] != CupDataPast.data[QAQ])
                 {
                     CupCheckTime = 0;
-                    for (int OUO = 0; OUO < 5; OUO++)
-                    {
+                    for (int OUO = 0; OUO < 5; OUO++){
                         CupDataPast.data[OUO] = CupTempBuffer.data[OUO];
                     }
                     break;
                 }
-                else
-                {
+                else{
                     if (QAQ == 4)
                         CupCheckTime++;
                 }
@@ -264,18 +299,24 @@ public:
 
     bool CupService(aruco_pose::cup::Request &req, aruco_pose::cup::Response &res)
     {
-        for (int count = 0; count < 5; count++)
-        {
-            ROS_INFO("%d",CupDataPast.data[count]);
-            res.CupResult.push_back(CupDataPast.data[count]);
+        if(CupDataStable == 1){
+            for (int count = 0; count < 5; count++)
+            {
+                ROS_INFO("%d", CupDataPast.data[count]);
+                res.CupResult.push_back(CupDataPast.data[count]);
+            }
+            return true;
         }
-        return true;
+        
     }
     bool N_S_Service(aruco_pose::ns::Request &req, aruco_pose::ns::Response &res)
     {
-        ROS_INFO("%s",N_S_Result);
-        res.ns = N_S_Result.data[0];
-        return true;
+        if(N_S_DataStable == 1){
+            ROS_INFO("%s", N_S_Result);
+            res.ns = N_S_Result.data[0];
+            return true;
+        }
+
     }
 
     void Publish()
@@ -290,7 +331,7 @@ public:
         str.data = strForAssemble.str();
         // pub.publish(str);
         // CupCplt = 0;
-        MarkerCplt = 0;
+        // MarkerCplt = 0;
         strBufferCup.str("");
         strBufferCup.clear();
         strBufferMarker.str("");
@@ -332,14 +373,17 @@ int main(int argc, char **argv)
     tf::TransformListener listener(ros::Duration(10));
     //ros::Subscriber sub2 = n.subscribe("pub", 1, chatterCallback);
     Camera camera;
-
-    // ros::Timer timer = camera.n.createTimer(ros::Duration(1.0), boost::bind(Camera::transformPoint, boost::ref(listener)));
-    while (ros::ok())
-    {
-        camera.Publish();
-        //camera.transformPoint(listener);
-        // ros::Duration(2).sleep();
-        ros::spinOnce();
+    if(camera.machineState == 1){
+        while (ros::ok())
+        {
+            camera.now_time = ros::Time::now().toSec();
+            camera.Publish();
+            //camera.transformPoint(listener);
+            // ros::Duration(2).sleep();
+            ros::spinOnce();
+        }
     }
+    // ros::Timer timer = camera.n.createTimer(ros::Duration(1.0), boost::bind(Camera::transformPoint, boost::ref(listener)));
+
     return 0;
 }
