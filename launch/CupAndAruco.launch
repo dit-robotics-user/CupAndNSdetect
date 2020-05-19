@@ -14,7 +14,7 @@
       <param  name="XPose" type="int" value="603"/>
       <param  name="YPose" type="int" value="465"/>
    </node>	
-   <!--<node name = "CameraResult" pkg="aruco_pose" type = "CameraResult"/>-->
+   <node name = "CameraResult" pkg="aruco_pose" type = "CameraResult"/>
     <!-- aruco map -->
     <node pkg="nodelet" clear_params="true" type="nodelet" name="aruco_map" args="load aruco_pose/aruco_map nodelet_manager">
         <remap from="image_raw" to="/usb_cam/image_raw"/>

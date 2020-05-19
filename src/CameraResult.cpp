@@ -156,7 +156,6 @@ public:
                     angle *= 180;
                     if (angle < 0)
                         angle += 360;
-
                     angle2 = asin(
                         2 * (markers->markers[0].pose.orientation.w * markers->markers[0].pose.orientation.y -
                              markers->markers[0].pose.orientation.x * markers->markers[0].pose.orientation.z));
@@ -185,7 +184,7 @@ public:
                         {
                             if (angle >= 360 - angleMargin || angle <= 0 + angleMargin)
                             {
-                                strBufferMarker << 1;
+                                strBufferMarker << 0;
                                 N_S_Result.data = strBufferMarker.str();
                                 ROS_INFO("%d", N_S_Result.data[0]);
                                 // ROS_INFO("Heading to North");
@@ -193,7 +192,7 @@ public:
 
                             else if (angle >= 180 - angleMargin && angle <= 180 + angleMargin)
                             {
-                                strBufferMarker << 0;
+                                strBufferMarker << 1;
                                 N_S_Result.data = strBufferMarker.str();
                                 ROS_INFO("%d", N_S_Result.data[0]);
                                 // ROS_INFO("Heading to South");
@@ -256,7 +255,12 @@ public:
 
 
     void updateStatus(const std_msgs::Int32::ConstPtr & msg){
-        if(msg->data == 5 && machineState != 1){
+        if(msg->data == 4 && machineState != 1){
+            
+            
+        }
+        else if (msg->data == 5 && machineState != 1)
+        {
             machineState = 1;
             start_time = ros::Time::now().toSec();
         }
@@ -303,7 +307,7 @@ public:
             for (int count = 0; count < 5; count++)
             {
                 ROS_INFO("%d", CupDataPast.data[count]);
-                res.CupResult.push_back(CupDataPast.data[count]);
+                res.CupResult.push_back(CupDataPast.data[count]-48);
             }
             return true;
         }
@@ -313,7 +317,7 @@ public:
     {
         if(N_S_DataStable == 1){
             ROS_INFO("%s", N_S_Result);
-            res.ns = N_S_Result.data[0];
+            res.ns = N_S_Result.data[0] - 48;
             return true;
         }
 
@@ -370,14 +374,14 @@ int main(int argc, char **argv)
 {
 
     ros::init(argc, argv, "CameraResult");
-    tf::TransformListener listener(ros::Duration(10));
+    //tf::TransformListener listener(ros::Duration(10));
     //ros::Subscriber sub2 = n.subscribe("pub", 1, chatterCallback);
     Camera camera;
     if(camera.machineState == 1){
         while (ros::ok())
         {
             camera.now_time = ros::Time::now().toSec();
-            camera.Publish();
+            // camera.Publish();
             //camera.transformPoint(listener);
             // ros::Duration(2).sleep();
             ros::spinOnce();
