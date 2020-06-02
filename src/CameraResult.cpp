@@ -72,6 +72,8 @@ public:
     std_msgs::String CupTempBuffer;
 
     std_msgs::String CupDataPast;
+    
+    std_msgs::String CupDataChecked;
 
     std_msgs::String N_S_Result;
 
@@ -133,6 +135,27 @@ public:
     // }
 
 
+    void AngleTransform(float x, float y, float z, float w){
+        angle = atan2(2 * (w * z + x * y), 1 - 2 * (z * z + y * y));
+        angle *= -1;
+        angle /= 3.1415926;
+        angle *= 180;
+        if(angle < 0)
+            angle += 360;
+        angle2 = asin( 2 * (w * y - x * z));
+        angle2 *= -1;
+        angle2 /= 3.1415926;
+        angle2 *= 180;
+        if(angle2 < 0 )
+            angle2 += 360;
+        angle3 = atan2(2 * (y * z + x * w), 1 - 2 * (z * z - w * w));
+        angle3 *= -1;
+        angle3 /= 3.1415926;
+        angle3 *= 180;
+        if(angle3 < 0)
+            angle3 += 360;
+    }
+
     void markersCallback(const aruco_pose::MarkerArray::ConstPtr &markers)
     {
 
@@ -140,108 +163,65 @@ public:
         {
             if (now_time - start_time >= 25){
                 // if(markers->markers[0].id != 17) {
-                if (MarkerCplt != 1)
-                {
-                    last_data = angle;
-                    last_data2 = angle2;
-                    last_data2 = angle3;
-                    // ROS_INFO("id:%ld",markers->markers[0].id );
-                    angle = atan2(
-                        2 * (markers->markers[0].pose.orientation.w * markers->markers[0].pose.orientation.z +
-                             markers->markers[0].pose.orientation.x * markers->markers[0].pose.orientation.y),
-                        1 - 2 * (markers->markers[0].pose.orientation.z * markers->markers[0].pose.orientation.z +
-                                 markers->markers[0].pose.orientation.y * markers->markers[0].pose.orientation.y));
-                    angle *= -1;
-                    angle /= (3.1415926);
-                    angle *= 180;
-                    if (angle < 0)
-                        angle += 360;
-                    angle2 = asin(
-                        2 * (markers->markers[0].pose.orientation.w * markers->markers[0].pose.orientation.y -
-                             markers->markers[0].pose.orientation.x * markers->markers[0].pose.orientation.z));
-                    angle2 *= -1;
-                    angle2 /= (3.1415926);
-                    angle2 *= 180;
-                    if (angle2 < 0)
-                        angle2 += 360;
-
-                    angle3 = atan2(
-                        2 * (markers->markers[0].pose.orientation.y * markers->markers[0].pose.orientation.z +
-                             markers->markers[0].pose.orientation.x * markers->markers[0].pose.orientation.w),
-                        1 - 2 * (markers->markers[0].pose.orientation.z * markers->markers[0].pose.orientation.z +
-                                 markers->markers[0].pose.orientation.w * markers->markers[0].pose.orientation.w));
-                    angle3 *= -1;
-                    angle3 /= (3.1415926);
-                    angle3 *= 180;
-                    if (angle3 < 0)
-                        angle3 += 360;
-
-                    if ((angle > last_data - 10 || angle < last_data + 10))
-                    {
-                        count1++;
-                        //ROS_INFO("angle = %f", angle);
-                        if (count1 == 5)
-                        {
-                            if (angle >= 360 - angleMargin || angle <= 0 + angleMargin)
-                            {
-                                strBufferMarker << 0;
-                                N_S_Result.data = strBufferMarker.str();
-                                ROS_INFO("%d", N_S_Result.data[0]);
-                                // ROS_INFO("Heading to North");
-                            }
-
-                            else if (angle >= 180 - angleMargin && angle <= 180 + angleMargin)
-                            {
-                                strBufferMarker << 1;
-                                N_S_Result.data = strBufferMarker.str();
-                                ROS_INFO("%d", N_S_Result.data[0]);
-                                // ROS_INFO("Heading to South");
-                            }
-
-                            else
-                            {
-                                strBufferMarker << 3;
-                                N_S_Result.data = strBufferMarker.str();
-                            }
-                            if (N_S_DataStable != 1)
-                            {
-                                if (N_S_DataPast != N_S_Result.data[0])
-                                {
-                                    N_S_CheckTime = 0;
-                                    N_S_DataPast = N_S_Result.data[0];
+                if (MarkerCplt != 1){
+                    if(N_S_CheckTime != 5){
+                        last_data = angle;   // target angle (Used for NS detection)
+                        last_data2 = angle2;
+                        last_data2 = angle3;
+                        // ROS_INFO("id:%ld",markers->markers[0].id );
+                        AngleTransform(markers->markers[0].pose.orientation.x,markers->markers[0].pose.orientation.y,markers->markers[0].pose.orientation.z,markers->markers[0].pose.orientation.w);
+                        if ((angle > last_data - 10 || angle < last_data + 10)){
+                            count1++;
+                            //count 5 time to check the angle is stable
+                            //ROS_INFO("angle = %f", angle);
+                            if (count1 == 5){
+                            //if the angle is stable find out the final result of NS after getting 5 identical result( N or S)
+                                if (angle >= 360 - angleMargin || angle <= 0 + angleMargin){
+                                    strBufferMarker << 0;
+                                    N_S_Result.data = strBufferMarker.str();
+                                    ROS_INFO("%d", N_S_Result.data[0]);
+                                    // ROS_INFO("Heading to North");
                                 }
-                                else
-                                {
-                                    N_S_CheckTime++;
-                                    if (N_S_CheckTime == 5)
-                                        N_S_DataStable = 1;
+
+                                else if (angle >= 180 - angleMargin && angle <= 180 + angleMargin){
+                                    strBufferMarker << 1;
+                                    N_S_Result.data = strBufferMarker.str();
+                                    ROS_INFO("%d", N_S_Result.data[0]);
+                                    // ROS_INFO("Heading to South");
                                 }
+
+                                else{
+                                    strBufferMarker << 3;
+                                    N_S_Result.data = strBufferMarker.str();
+                                }
+                                if (N_S_DataStable != 1){
+                                    if (N_S_DataPast != N_S_Result.data[0]){
+                                        N_S_CheckTime = 0;
+                                        N_S_DataPast = N_S_Result.data[0];
+                                    }
+                                    else{
+                                        N_S_CheckTime++;
+                                        if (N_S_CheckTime == 5)
+                                            N_S_DataStable = 1;
+                                    }
+                                }
+                                count1 = 0;
+                                
+                                // strBufferMarker.data = strBuffer.str();
+                                // pub.publish(strBufferMarker);
+                                // ROS_INFO("angle = %f", angle);
                             }
-                            count1 = 0;
-                            MarkerCplt = 1;
-                            // strBufferMarker.data = strBuffer.str();
-                            // pub.publish(strBufferMarker);
-                            // ROS_INFO("angle = %f", angle);
                         }
+                        //if ((angle2 > last_data2 - 10 || angle2 < last_data2 + 10))
+                            //count2++;
+                        //if (count2 == 5)
+                           // count2 = 0;
+                        //if ((angle3 > last_data3 - 10 || angle3 < last_data3 + 10))
+                            //count3++;
+                        //if (count3 == 5)
+                            //count3 = 0;
                     }
-                    if ((angle2 > last_data2 - 10 || angle2 < last_data2 + 10))
-                        count2++;
-                    //ROS_INFO("angle = %f", angle);
-                    if (count2 == 5)
-                    {
-                        count2 = 0;
-                        // ROS_INFO("angle2 = %f", angle2);
-                    }
-
-                    if ((angle3 > last_data3 - 10 || angle3 < last_data3 + 10))
-                        count3++;
-                    //ROS_INFO("angle = %f", angle);
-                    if (count3 == 5)
-                    {
-                        count3 = 0;
-
-                        // ROS_INFO("angle3 = %f", angle3);
-                    }
+                    
                 }
             }
                 
@@ -271,30 +251,37 @@ public:
 
         if (CupCplt != 1)
         {
-            strBufferCup << msg->data.c_str();
+            if(CupCheckTime != 5){
+                strBufferCup << msg->data.c_str();
             CupTempBuffer.data = strBufferCup.str();
-            for (int QAQ = 0; QAQ < 5; QAQ++)
-            {
-                if (CupTempBuffer.data[QAQ] != CupDataPast.data[QAQ])
+                for (int QAQ = 0; QAQ < 5; QAQ++)
                 {
-                    CupCheckTime = 0;
-                    for (int OUO = 0; OUO < 5; OUO++){
-                        CupDataPast.data[OUO] = CupTempBuffer.data[OUO];
+                    if (CupTempBuffer.data[QAQ] != CupDataPast.data[QAQ])   
+                    //check if data is stable for 5 times
+                    {
+                        CupCheckTime = 0;
+                        for (int OUO = 0; OUO < 5; OUO++){
+                            CupDataPast.data[OUO] = CupTempBuffer.data[OUO];
+                        }
+                        //if not identical for two data  
+                        //recount 5 times for a new check
+                        break;
                     }
-                    break;
-                }
-                else{
-                    if (QAQ == 4)
-                        CupCheckTime++;
+                    else{
+                        if (QAQ == 4)
+                            CupCheckTime++;
+                    }
                 }
             }
+            
             if (CupCheckTime == 5)
                 CupDataStable = 1;
             // ROS_INFO("%d", CupTempBuffer.data[0]);
             if (CupDataStable == 1)
             {
-                CupCplt = 1;
+                
                 CupDataPast.data = CupTempBuffer.data;
+                CupDataChecked.data = CupTempBuffer.data;
                 // ROS_INFO("%s",CupDataPast.data);
                 pub.publish(CupDataPast);
             }
@@ -303,22 +290,52 @@ public:
 
     bool CupService(aruco_pose::cup::Request &req, aruco_pose::cup::Response &res)
     {
-        if(CupDataStable == 1){
-            for (int count = 0; count < 5; count++)
-            {
-                ROS_INFO("%d", CupDataPast.data[count]);
-                res.CupResult.push_back(CupDataPast.data[count]-48);
+        if(req.OUO == 1){
+            if(CupDataStable == 1){
+                for (int count = 0; count < 5; count++){
+                   ROS_INFO("%d", CupDataChecked.data[count]);
+                   res.CupResult.push_back(CupDataChecked.data[count]-48);
+                }
+                return true;
             }
+        }
+        else if(req.OUO == 2){
+            CupCplt = 1;
             return true;
+        }
+        else if(req.OUO == 3){
+            CupDataStable == 0;
+            CupCheckTime = 0;
+            return false;
+        }
+        else if(req.OUO == 4){
+        
         }
         
     }
     bool N_S_Service(aruco_pose::ns::Request &req, aruco_pose::ns::Response &res)
     {
-        if(N_S_DataStable == 1){
-            ROS_INFO("%s", N_S_Result);
-            res.ns = N_S_Result.data[0] - 48;
+        if(req.OAO == 1){
+            if(N_S_DataStable == 1){
+                ROS_INFO("%s", N_S_Result);
+                res.ns = N_S_Result.data[0] - 48;
+                return true;
+            }
+        }
+        else if(req.OAO == 2){
+            MarkerCplt = 1;
             return true;
+        }
+        else if(req.OAO == 3){
+            N_S_DataStable = 0;
+            N_S_CheckTime = 0;
+            return false;
+        }
+        else if(req.OAO == 4){
+        
+        }
+        else if(req.OAO == 5){
+        
         }
 
     }
