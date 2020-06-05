@@ -94,6 +94,10 @@ public:
     int N_S_CheckTime;
 
     int machineState;
+    
+    bool NS_Start;
+    
+    bool Cup_Start;
 
     Camera()
     {
@@ -104,7 +108,7 @@ public:
         markerZ = 0;
         pub = n.advertise<std_msgs::String>("Cup_NS", 1);
         aruco = n.subscribe("aruco_detect/markers", 1000, &Camera::markersCallback, this);
-        machineStatus = n.subscribe("update_status",1000,&Camera::updateStatus,this);
+        machineStatus = n.subscribe("pub_status",1,&Camera::updateStatus,this);
         machineState = 0;
         cup = n.subscribe("cup", 1000, &Camera::CupCallback, this);
         service1 = n.advertiseService("cup", &Camera::CupService,this);
@@ -125,14 +129,11 @@ public:
         N_S_CheckTime = 0;
         CupDataStable = 0;
         N_S_DataPast = 0;
+        Cup_Start = false;
+        NS_Start = false;
     }
 
-    // void timerCallback(const ros::TimerEvent& event){
-    //     if(machineState == 1){
-    //         if(start_time == 0)
-    //             start_time = event->current_real;
-    //     }
-    // }
+
 
 
     void AngleTransform(float x, float y, float z, float w){
@@ -235,57 +236,62 @@ public:
 
 
     void updateStatus(const std_msgs::Int32::ConstPtr & msg){
-        if(msg->data == 4 && machineState != 1){
-            
-            
+        ROS_INFO("%d",msg->data);
+        ROS_INFO("in callback");
+        if(msg->data == 4 && Cup_Start == false){
+            Cup_Start = true;
+            ROS_INFO("no");
         }
-        else if (msg->data == 5 && machineState != 1)
+        else if (msg->data == 5 && NS_Start == false)
         {
-            machineState = 1;
+            NS_Start = true;
+            ROS_INFO("gogo");
             start_time = ros::Time::now().toSec();
         }
     }
 
     void CupCallback(const std_msgs::String::ConstPtr &msg)
     {
+		if(Cup_Start == true){
+			if (CupCplt != 1){
+				if(CupCheckTime != 5){
+					strBufferCup << msg->data.c_str();
+				CupTempBuffer.data = strBufferCup.str();
+					for (int QAQ = 0; QAQ < 5; QAQ++)
+					{
+						if (CupTempBuffer.data[QAQ] != CupDataPast.data[QAQ])   
+						//check if data is stable for 5 times
+						{
+							CupCheckTime = 0;
+							for (int OUO = 0; OUO < 5; OUO++){
+								CupDataPast.data[OUO] = CupTempBuffer.data[OUO];
+							}
+							//if not identical for two data  
+							//recount 5 times for a new check
+							break;
+						}
+						else{
+							if (QAQ == 4)
+								CupCheckTime++;
+						}
+					}
+				}
+				
+				if (CupCheckTime == 5)
+					CupDataStable = 1;
+				// ROS_INFO("%d", CupTempBuffer.data[0]);
+				if (CupDataStable == 1)
+				{
+					
+					CupDataPast.data = CupTempBuffer.data;
+					CupDataChecked.data = CupTempBuffer.data;
+					// ROS_INFO("%s",CupDataPast.data);
+					pub.publish(CupDataPast);
+				}
+			}
+		}	
 
-        if (CupCplt != 1)
-        {
-            if(CupCheckTime != 5){
-                strBufferCup << msg->data.c_str();
-            CupTempBuffer.data = strBufferCup.str();
-                for (int QAQ = 0; QAQ < 5; QAQ++)
-                {
-                    if (CupTempBuffer.data[QAQ] != CupDataPast.data[QAQ])   
-                    //check if data is stable for 5 times
-                    {
-                        CupCheckTime = 0;
-                        for (int OUO = 0; OUO < 5; OUO++){
-                            CupDataPast.data[OUO] = CupTempBuffer.data[OUO];
-                        }
-                        //if not identical for two data  
-                        //recount 5 times for a new check
-                        break;
-                    }
-                    else{
-                        if (QAQ == 4)
-                            CupCheckTime++;
-                    }
-                }
-            }
-            
-            if (CupCheckTime == 5)
-                CupDataStable = 1;
-            // ROS_INFO("%d", CupTempBuffer.data[0]);
-            if (CupDataStable == 1)
-            {
-                
-                CupDataPast.data = CupTempBuffer.data;
-                CupDataChecked.data = CupTempBuffer.data;
-                // ROS_INFO("%s",CupDataPast.data);
-                pub.publish(CupDataPast);
-            }
-        }
+        
     }
 
     bool CupService(aruco_pose::cup::Request &req, aruco_pose::cup::Response &res)
@@ -360,8 +366,7 @@ public:
         // }
     }
 
-    void transformPoint(const tf::TransformListener &listener)
-    {
+    void transformPoint(const tf::TransformListener &listener){
         geometry_msgs::PointStamped Camera_point;
         Camera_point.header.frame_id = "base_Camera";
         //we'll just use the most recent transform available for our simple example
@@ -394,16 +399,15 @@ int main(int argc, char **argv)
     //tf::TransformListener listener(ros::Duration(10));
     //ros::Subscriber sub2 = n.subscribe("pub", 1, chatterCallback);
     Camera camera;
-    if(camera.machineState == 1){
-        while (ros::ok())
-        {
+
+    while(ros::ok())
+    {
+         if(camera.machineState == 1){
             camera.now_time = ros::Time::now().toSec();
-            // camera.Publish();
-            //camera.transformPoint(listener);
-            // ros::Duration(2).sleep();
             ros::spinOnce();
         }
     }
+    
     // ros::Timer timer = camera.n.createTimer(ros::Duration(1.0), boost::bind(Camera::transformPoint, boost::ref(listener)));
 
     return 0;
