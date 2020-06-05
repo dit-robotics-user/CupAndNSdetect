@@ -13,8 +13,12 @@
    <node name = "cupDetect" pkg = "cupDetection" type="cupDetect" output = "screen">
       <param  name="XPose" type="int" value="603"/>
       <param  name="YPose" type="int" value="465"/>
+      <param  name="State" type="int" value="0"/>
+      <param name ="Command" type = "int" value="4"/>
    </node>	
-   <node name = "CameraResult" pkg="aruco_pose" type = "CameraResult" output = "screen"/>
+   <node name = "CameraResult" pkg="aruco_pose" type = "CameraResult" output = "screen">
+      <param name="testStart" type = "int" value = "0"/>
+   </node>
 
-    <node name = "gui" pkg="eurobot_gui"  type="demo_guiForCamera.py"/>
+    <!--<node name = "gui" pkg="eurobot_gui"  type="demo_guiForCamera.py"/>-->
 </launch>

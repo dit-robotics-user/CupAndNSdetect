@@ -59,9 +59,9 @@ public:
 
     float last_data3;
 
-    double start_time;
+    ros::Time start_time;
     
-    double now_time;
+    ros::Time now_time;
 
     std::stringstream strBufferMarker;
 
@@ -98,6 +98,10 @@ public:
     bool NS_Start;
     
     bool Cup_Start;
+    
+    int testStart;
+    
+    int MarkerStart;
 
     Camera()
     {
@@ -131,6 +135,7 @@ public:
         N_S_DataPast = 0;
         Cup_Start = false;
         NS_Start = false;
+        MarkerStart = 0;
     }
 
 
@@ -162,8 +167,13 @@ public:
 
         if (!markers->markers.empty())
         {
-            if (now_time - start_time >= 25){
-                // if(markers->markers[0].id != 17) {
+            //n.getParam("CameraResult/testStart",testStart);
+            //ROS_INFO("now = %lf",now_time);
+            //ROS_INFO("start = %lf",start_time);
+            //ROS_INFO("time = %f",(now_time-start_time).toSec());
+            //if ((now_time - start_time).toSec() >= 25){
+           if(markers->markers[0].id == 17) {
+            if(MarkerStart == 1){
                 if (MarkerCplt != 1){
                     if(N_S_CheckTime != 5){
                         last_data = angle;   // target angle (Used for NS detection)
@@ -171,7 +181,9 @@ public:
                         last_data2 = angle3;
                         // ROS_INFO("id:%ld",markers->markers[0].id );
                         AngleTransform(markers->markers[0].pose.orientation.x,markers->markers[0].pose.orientation.y,markers->markers[0].pose.orientation.z,markers->markers[0].pose.orientation.w);
-                        if ((angle > last_data - 10 || angle < last_data + 10)){
+                        ROS_INFO("angle = %f",angle);
+                        ROS_INFO("NS_Stable = %d",N_S_DataStable);
+                        if ((angle > last_data - 20 || angle < last_data + 20)){
                             count1++;
                             //count 5 time to check the angle is stable
                             //ROS_INFO("angle = %f", angle);
@@ -224,29 +236,25 @@ public:
                     }
                     
                 }
-            }
+            }       
                 
-        }
-        else
-        {
-            // ROS_INFO("None");
+            }
+
         }
 
     }
 
 
     void updateStatus(const std_msgs::Int32::ConstPtr & msg){
-        ROS_INFO("%d",msg->data);
-        ROS_INFO("in callback");
+        //ROS_INFO("%d",msg->data);
         if(msg->data == 4 && Cup_Start == false){
             Cup_Start = true;
-            ROS_INFO("no");
         }
         else if (msg->data == 5 && NS_Start == false)
         {
             NS_Start = true;
             ROS_INFO("gogo");
-            start_time = ros::Time::now().toSec();
+            //start_time = ros::Time::now();
         }
     }
 
@@ -343,6 +351,11 @@ public:
         else if(req.OAO == 5){
         
         }
+        else if(req.OAO == 10){
+            MarkerStart = 1;
+            ROS_INFO("%d",MarkerStart);
+            res.ns = 10;
+        }
 
     }
 
@@ -403,9 +416,9 @@ int main(int argc, char **argv)
     while(ros::ok())
     {
          if(camera.machineState == 1){
-            camera.now_time = ros::Time::now().toSec();
-            ros::spinOnce();
+            //camera.now_time = ros::Time::now();
         }
+        ros::spinOnce();
     }
     
     // ros::Timer timer = camera.n.createTimer(ros::Duration(1.0), boost::bind(Camera::transformPoint, boost::ref(listener)));
