@@ -331,7 +331,6 @@ public:
     {
         if(req.OAO == 1){
             if(N_S_DataStable == 1){
-                ROS_INFO("%s", N_S_Result);
                 res.ns = N_S_Result.data[0] - 48;
                 return true;
             }
